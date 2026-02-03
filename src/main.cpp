@@ -109,8 +109,8 @@ void Noise(sil::Image &image)
     {
         for (int y{0}; y < image.height(); y++)
         {
-            int randomWidth = random_int(0, image.width());
-            int randomHeight = random_int(0, image.height());
+            int randomWidth = random_int(0, image.width() - 1);
+            int randomHeight = random_int(0, image.height() - 1);
             float randomRed = random_float(0.0, 1.0);
             float randomBlue = random_float(0.0, 1.0);
             float randomGreen = random_float(0.0, 1.0);
@@ -145,7 +145,7 @@ sil::Image RGBSplit(sil::Image &image)
         for (int y{0}; y < image.height(); y++)
         {
             // Decalage des couleurs
-            int offset = 30;
+            int const offset = 30;
             int xr = x - offset;
             int xb = x + offset;
             if (xr <= 0)
@@ -166,7 +166,7 @@ sil::Image RGBSplit(sil::Image &image)
 
 void Lighting(sil::Image &image)
 {
-    float power = 2.0;
+    float const power = 2.0;
     for (int x{0}; x < image.width(); x++)
     {
         for (int y{0}; y < image.height(); y++)
@@ -198,7 +198,7 @@ sil::Image Disque()
 {
     sil::Image image{500, 500};
     // On peut changer la valeur de la taille pour changer la taille du disque, plus on augmente, plus il est petit
-    int taille = 4;
+    int const taille = 4;
     float rayon = image.width() / taille;
     for (int x{0}; x < image.width(); x++)
     {
@@ -222,13 +222,13 @@ sil::Image Cercle()
 {
     sil::Image image{500, 500};
     // Taille du cercle extérieur
-    float taille = 4;
+    float const thickness = 4;
     // Taille du cercle intérieur
-    float thickness = 4.5;
+    float const taille = thickness + 0.5;
     // Rayon du cercle extérieur
-    float rayon1 = image.width() / taille;
+    float const rayon1 = image.width() / thickness;
     // Rayon du cercle intérieur
-    float rayon2 = image.width() / thickness;
+    float const rayon2 = image.width() / taille;
 
     for (int x{0}; x < image.width(); x++)
     {
@@ -258,18 +258,20 @@ sil::Image Cercle()
 
 void Animation()
 {
-    int size = 500;
-    // Taille du cercle extérieur
+    int const size = 500;
+    // Taille de l'image
     float taille = 4;
-    // Taille du cercle intérieur
+    // Taille du cercle
     float rayon1 = size / taille;
-
+    // Incrément du nombre d'image
     int numberImage = 0;
-    for (int images = 0; images < size; images++)
+    int const increment = size / 50;
+    for (int images = 0; images < size; images += increment)
     {
-        sil::Image image{500, 500};
+        sil::Image image{size, size};
 
         float move = images - size / 2;
+
         for (int x{0}; x < image.width(); x++)
         {
             for (int y{0}; y < image.height(); y++)
@@ -290,10 +292,112 @@ void Animation()
     }
 }
 
+sil::Image Mosaique(sil::Image &image)
+{
+    int const multiply = 5;
+    sil::Image imageFinal{image.width() * multiply, image.height() * multiply};
+    for (int i = 0; i < multiply; i++)
+    {
+        for (int j = 0; j < multiply; j++)
+        {
+            for (int x = 0; x < image.width(); x++)
+            {
+                for (int y = 0; y < image.height(); y++)
+                {
+                    imageFinal.pixel(
+                        x + i * image.width(),
+                        y + j * image.height()) = image.pixel(x, y);
+                }
+            }
+        }
+    }
+
+    return imageFinal;
+}
+
+sil::Image MosaiqueMirroir(sil::Image &image)
+{
+    int const multiply = 5;
+    sil::Image imageFinal{
+        image.width() * multiply,
+        image.height() * multiply};
+
+    for (int i = 0; i < multiply; ++i)
+    {
+        for (int j = 0; j < multiply; ++j)
+        {
+            for (int x = 0; x < image.width(); ++x)
+            {
+                for (int y = 0; y < image.height(); ++y)
+                {
+                    int trueX = x;
+                    int trueY = y;
+                    if (i % 2 == 1)
+                    {
+                        trueX = image.width() - 1 - x;
+                    }
+                    if (j % 2 == 1)
+                    {
+                        trueY = image.height() - 1 - y;
+                    }
+
+                    imageFinal.pixel(
+                        x + i * image.width(),
+                        y + j * image.height()) = image.pixel(trueX, trueY);
+                }
+            }
+        }
+    }
+
+    return imageFinal;
+}
+
+void Glitch(sil::Image &image)
+{
+    int const glitchFactor = 400;
+    int const minWidth = 0;
+    int const minHeight = 0;
+    int const maxWidth = (image.width() - 1) / 10;
+    int const maxHeight = (image.height() - 1) / 30;
+
+    for (int k = 0; k < glitchFactor; k++)
+    {
+        int randomWidth = random_int(0, image.width() - 1);
+        int randomHeight = random_int(0, image.height() - 1);
+
+        int glitchWidth = random_int(minWidth, maxWidth);
+        int glitchHeight = random_int(minHeight, maxHeight);
+
+        if (
+            randomWidth + glitchWidth >= image.width() || randomHeight + glitchHeight >= image.height())
+        {
+            continue;
+        }
+        for (int x = 0; x < glitchWidth; x++)
+        {
+            for (int y = 0; y < glitchHeight; y++)
+            {
+                image.pixel(randomWidth + x, randomHeight + y) = image.pixel(randomWidth, randomHeight);
+            }
+        }
+    }
+}
+
+void PixelSorting(sil::Image &image)
+{
+
+    for (int x{0}; x < image.width(); x++)
+    {
+        for (int y{0}; y < image.height(); y++)
+        {
+            image.pixel(x, y).r = 0.f;
+            image.pixel(x, y).b = 0.f;
+        }
+    }
+}
+
 int main()
 {
-    // Seed pour l'aléatoire
-    set_random_seed(0);
 
     {
         sil::Image image{"images/logo.png"};
@@ -357,5 +461,20 @@ int main()
     }
     {
         Animation();
+    }
+    {
+        sil::Image image{"images/logo.png"};
+        sil::Image imageFinal = Mosaique(image);
+        imageFinal.save("output/Mosaique.png");
+    }
+    {
+        sil::Image image{"images/logo.png"};
+        sil::Image imageFinal = MosaiqueMirroir(image);
+        imageFinal.save("output/MosaiqueMirroir.png");
+    }
+    {
+        sil::Image image{"images/logo.png"};
+        Glitch(image);
+        image.save("output/Glitch.png");
     }
 }
