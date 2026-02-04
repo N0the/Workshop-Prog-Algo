@@ -2,6 +2,8 @@
 #include "random.hpp"
 #include <cmath>
 #include <string>
+#include <iostream>
+#include <algorithm> //std::sort
 
 void greenImage(sil::Image &image)
 {
@@ -292,6 +294,65 @@ void Animation()
     }
 }
 
+sil::Image Rosace()
+{
+    sil::Image image{500, 500};
+    // Epaisseur du trait
+    float const thickness = 2;
+    // Rayon du cercle
+    float const rayon = image.width() / 4;
+
+    float const pi = 3.141592653589793f;
+
+    for (int x{0}; x < image.width(); x++)
+    {
+        for (int y{0}; y < image.height(); y++)
+        {
+            // On centre le cercle
+            float xCoordinate = x - (image.width() / 2);
+            float yCoordinate = y - (image.height() / 2);
+
+            bool draw = false;
+
+            // Cercle central
+            float distanceCentre = std::sqrt(xCoordinate * xCoordinate + yCoordinate * yCoordinate);
+
+            // Condition qui permet de dessiner le cercle en fonction de l'épaisseur
+            if (std::abs(distanceCentre - rayon) < thickness)
+            {
+                draw = true;
+            }
+
+            // Cercle répété autour
+            for (int i{0}; i < 6; i++)
+            {
+                // On incrémente pour faire le tour complet d'un cercle => 2pi
+                float angle = i * pi / 3;
+                float xRayon = rayon * cos(angle);
+                float yRayon = rayon * sin(angle);
+                // Distance entre le point du milieu et celui présent sur le cercle
+                float xDistance = xCoordinate - xRayon;
+                float yDistance = yCoordinate - yRayon;
+
+                // Cercle qui va être répété, même formule que celui du centre
+                float distance = std::sqrt(xDistance * xDistance + yDistance * yDistance);
+                // Condition qui permet de dessiner le cercle en fonction de l'épaisseur
+                if (std::abs(distance - rayon) < thickness)
+                {
+                    draw = true;
+                }
+                if (draw)
+                {
+                    image.pixel(x, y).r = 1.f;
+                    image.pixel(x, y).g = 1.f;
+                    image.pixel(x, y).b = 1.f;
+                }
+            }
+        }
+    }
+    return image;
+}
+
 sil::Image Mosaique(sil::Image &image)
 {
     int const multiply = 5;
@@ -354,7 +415,7 @@ sil::Image MosaiqueMirroir(sil::Image &image)
 
 void Glitch(sil::Image &image)
 {
-    int const glitchFactor = 400;
+    int const glitchFactor = 500;
     int const minWidth = 0;
     int const minHeight = 0;
     int const maxWidth = (image.width() - 1) / 10;
@@ -378,6 +439,14 @@ void Glitch(sil::Image &image)
             for (int y = 0; y < glitchHeight; y++)
             {
                 image.pixel(randomWidth + x, randomHeight + y) = image.pixel(randomWidth, randomHeight);
+                int glitchWidth = random_int(minWidth, maxWidth);
+                int glitchHeight = random_int(minHeight, maxHeight);
+
+                if (
+                    randomWidth + glitchWidth >= image.width() || randomHeight + glitchHeight >= image.height())
+                {
+                    continue;
+                }
             }
         }
     }
@@ -385,13 +454,234 @@ void Glitch(sil::Image &image)
 
 void PixelSorting(sil::Image &image)
 {
+    int const pixelSortingFactor = 1000;
+    int width = image.width();
+    int height = image.height();
+    std::vector<glm::vec3> &pixels = image.pixels();
+
+    for (int k = 0; k < pixelSortingFactor; ++k)
+    {
+
+        int maxRectWidth = width / 5;
+        int maxRectHeight = height / 100;
+        int rectWidth = random_int(1, maxRectWidth);
+        int rectHeight = random_int(1, maxRectHeight);
+        int randomX = random_int(0, width - 1);
+        int randomY = random_int(0, height - 1);
+
+        if (randomX + rectWidth >= width)
+            rectWidth = width - randomX;
+        if (randomY + rectHeight >= height)
+            rectHeight = height - randomY;
+
+        for (int y = 0; y < rectHeight; ++y)
+        {
+            randomX = random_int(0, width - 1);
+            randomY = random_int(0, height - 1);
+            auto row_begin = pixels.begin() + (randomY + y) * width + randomX;
+            auto row_end = row_begin + rectWidth;
+
+            std::sort(row_begin, row_end,
+                      [](const glm::vec3 &a, const glm::vec3 &b)
+                      {
+                          // Tri sur la luminance
+                          float lumA = 0.2126 * a.r + 0.7152 * a.g + 0.0722 * a.b;
+                          float lumB = 0.2126 * b.r + 0.7152 * b.g + 0.0722 * b.b;
+                          return lumA < lumB;
+                      });
+        }
+    }
+}
+
+sil::Image MandelBrot()
+{
+    // Données trouvées sur internet
+    double const x1 = -2.1;
+    double const x2 = 0.6;
+    double const y1 = -1.2;
+    double const y2 = 1.2;
+    // Permet de donner l'effet de zoom sur notre fractale
+    int const zoom = 100;
+    // Affine la fractale
+    int const iteration = 100;
+    // On adapte la taille en fonction des données d'entrées
+    int width = static_cast<int>((x2 - x1) * zoom);
+    int height = static_cast<int>((y2 - y1) * zoom);
+
+    sil::Image image{width, height};
 
     for (int x{0}; x < image.width(); x++)
     {
         for (int y{0}; y < image.height(); y++)
         {
-            image.pixel(x, y).r = 0.f;
-            image.pixel(x, y).b = 0.f;
+
+            ///** r pour réel et i pour imaginaire **///
+
+            // Conversion des pixels en coordonnées complexes
+            //  c_r = partie réelle, c_i = partie imaginaire
+
+            float c_r = x / static_cast<float>(zoom) + x1;
+            float c_i = y / static_cast<float>(zoom) + y1;
+            // Initialisation de z partie réelle et partie imaginaire
+            float z_r = 0;
+            float z_i = 0;
+            int i = 0;
+
+            // Toutes les formules ci-dessous, ont été trouvé sur internet (développement de la formule de base z = z^2 + c)
+            //  La formule de Mandelbrot : z = z^2 + c
+            while (z_r * z_r + z_i * z_i < 4 && i < iteration)
+            {
+                // stockage temporaire de la partie réelle
+                float tmp = z_r;
+                // partie réel et imaginaire
+                z_r = z_r * z_r - z_i * z_i + c_r; // zr^2 - zi^2 + cr
+                z_i = 2 * tmp * z_i + c_i;         // 2*zr*zi + ci
+                i++;
+            }
+
+            // Si le pixel reste dans le fractal de Mandelbrot, je le dessine en blanc
+            if (i == iteration)
+            {
+                image.pixel(x, y).r = 1.0;
+                image.pixel(x, y).g = 1.0;
+                image.pixel(x, y).b = 1.0;
+            }
+        }
+    }
+    return image;
+}
+// Ces deux fonctions sont utilisé pour l'exercice du Oklab
+float sRGB_to_linear(float color)
+{
+    if (color <= 0.04045f)
+        return color / 12.92f;
+    else
+        return std::pow((color + 0.055f) / 1.055f, 2.4f);
+}
+float linear_to_sRGB(float color)
+{
+    if (color <= 0.0031308f)
+        return 12.92f * color;
+    else
+        return 1.055f * std::pow(color, 1.0f / 2.4f) - 0.055f;
+}
+
+sil::Image GradientLab()
+{
+    sil::Image image{300, 200};
+    for (int x{0}; x < image.width(); x++)
+    {
+        for (int y{0}; y < image.height(); y++)
+        {
+
+            // Couleurs de base
+            float R_sRGB = 1 - static_cast<float>(x) / image.width();
+            float G_sRGB = static_cast<float>(x) / image.width();
+            float B_sRGB = static_cast<float>(x) / image.width() * 2;
+
+            // Conversion sRGB à linear sRGB
+            float R_lin = sRGB_to_linear(R_sRGB);
+            float G_lin = sRGB_to_linear(G_sRGB);
+            float B_lin = sRGB_to_linear(B_sRGB);
+
+            // Conversion linear sRGB Oklab
+            float l = 0.4122214708f * R_lin + 0.5363325363f * G_lin + 0.0514459929f * B_lin;
+            float m = 0.2119034982f * R_lin + 0.6806995451f * G_lin + 0.1073969566f * B_lin;
+            float s = 0.0883024619f * R_lin + 0.2817188376f * G_lin + 0.6299787005f * B_lin;
+
+            float l_ = std::cbrt(l);
+            float m_ = std::cbrt(m);
+            float s_ = std::cbrt(s);
+
+            float L = 0.2104542553f * l_ + 0.7936177850f * m_ - 0.0040720468f * s_;
+            float a = 1.9779984951f * l_ - 2.4285922050f * m_ + 0.4505937099f * s_;
+            float b = 0.0259040371f * l_ + 0.7827717662f * m_ - 0.8086757660f * s_;
+
+            // Conversion Oklam linear RGB
+            float l2 = L + 0.3963377774f * a + 0.2158037573f * b;
+            float m2 = L - 0.1055613458f * a - 0.0638541728f * b;
+            float s2 = L - 0.0894841775f * a - 1.2914855480f * b;
+
+            l2 = std::pow(l2, 3.);
+            m2 = std::pow(m2, 3.);
+            s2 = std::pow(s2, 3.);
+
+            R_lin = 4.0767416621f * l2 - 3.3077115913f * m2 + 0.2309699292f * s2;
+            G_lin = -1.2684380046f * l2 + 2.6097574011f * m2 - 0.3413193965f * s2;
+            B_lin = -0.0041960863f * l2 - 0.7034186147f * m2 + 1.7076147010f * s2;
+
+            // Conversion linear rgb to SRGB
+
+            R_sRGB = std::max(0.f, std::min(1.f, linear_to_sRGB(R_lin)));
+            G_sRGB = std::max(0.f, std::min(1.f, linear_to_sRGB(G_lin)));
+            B_sRGB = std::max(0.f, std::min(1.f, linear_to_sRGB(B_lin)));
+            // Ne pas sortir du scope du sRGB (entre 0 et 1 en float)
+
+            image.pixel(x, y).r = R_sRGB;
+            image.pixel(x, y).g = G_sRGB;
+            image.pixel(x, y).b = B_sRGB;
+        }
+    }
+    return image;
+}
+
+void TramageV1(sil::Image &image)
+{
+    for (int x{0}; x < image.width(); x++)
+    {
+        for (int y{0}; y < image.height(); y++)
+        {
+            float red = image.pixel(x, y).r;
+            float blue = image.pixel(x, y).b;
+            float green = image.pixel(x, y).g;
+
+            float luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+
+            if (static_cast<int>(luminance * 10) % 2 == 0)
+            {
+                luminance = 1.0;
+            }
+            else
+            {
+                luminance = 0.0;
+            }
+            image.pixel(x, y).r = luminance;
+            image.pixel(x, y).b = luminance;
+            image.pixel(x, y).g = luminance;
+        }
+    }
+}
+
+void TramageV2(sil::Image &image)
+{
+    const int bayer_n = 4;
+    float bayer_matrix_4x4[][bayer_n] = {
+        {-0.5, 0, -0.375, 0.125},
+        {0.25, -0.25, 0.375, -0.125},
+        {-0.3125, 0.1875, -0.4375, 0.0625},
+        {0.4375, -0.0625, 0.3125, -0.1875},
+    };
+    for (int x{0}; x < image.width(); x++)
+    {
+        for (int y{0}; y < image.height(); y++)
+        {
+            float red = image.pixel(x, y).r;
+            float blue = image.pixel(x, y).b;
+            float green = image.pixel(x, y).g;
+            float luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+            
+            float bayer_value = bayer_matrix_4x4[x % bayer_n][y % bayer_n];
+            float output_color = luminance + bayer_value; //ajuste la luminance
+
+            output_color = std::max(0.f, std::min(1.f, output_color));
+            if (output_color < 0.5f)
+                output_color = 0.f; // noir
+            else
+                output_color = 1.f;
+
+            image.pixel(x, y).r = output_color;
+            image.pixel(x, y).g = output_color;
+            image.pixel(x, y).b = output_color;
         }
     }
 }
@@ -460,6 +750,10 @@ int main()
         image.save("output/Cercle.png");
     }
     {
+        sil::Image image = Rosace();
+        image.save("output/Rosace.png");
+    }
+    {
         Animation();
     }
     {
@@ -476,5 +770,28 @@ int main()
         sil::Image image{"images/logo.png"};
         Glitch(image);
         image.save("output/Glitch.png");
+    }
+    {
+        sil::Image image{"images/logo.png"};
+        PixelSorting(image);
+        image.save("output/PixelSorting.png");
+    }
+    {
+        sil::Image image = MandelBrot();
+        image.save("output/MandelBrot.png");
+    }
+    {
+        sil::Image image = GradientLab();
+        image.save("output/GradientLab.png");
+    }
+    {
+        sil::Image image{"images/photo_faible_contraste.jpg"};
+        TramageV1(image);
+        image.save("output/TramageV1.png");
+    }
+    {
+        sil::Image image{"images/photo_faible_contraste.jpg"};
+        TramageV2(image);
+        image.save("output/TramageV2.png");
     }
 }
