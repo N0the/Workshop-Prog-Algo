@@ -4,6 +4,9 @@
 #include <string>
 #include <iostream>
 #include <algorithm> //std::sort
+#include <complex>
+#include <glm/gtx/matrix_transform_2d.hpp>
+#include <vector>
 
 void greenImage(sil::Image &image)
 {
@@ -495,18 +498,12 @@ void PixelSorting(sil::Image &image)
 
 sil::Image MandelBrot()
 {
-    // Données trouvées sur internet
-    double const x1 = -2.1;
-    double const x2 = 0.6;
-    double const y1 = -1.2;
-    double const y2 = 1.2;
-    // Permet de donner l'effet de zoom sur notre fractale
-    int const zoom = 100;
-    // Affine la fractale
-    int const iteration = 100;
-    // On adapte la taille en fonction des données d'entrées
-    int width = static_cast<int>((x2 - x1) * zoom);
-    int height = static_cast<int>((y2 - y1) * zoom);
+    int const size = 500;
+    int const iteration = 50;
+    int const width = size;
+    int const height = size;
+    float const intervalMin = -2;
+    float const intervalMax = 2;
 
     sil::Image image{width, height};
 
@@ -514,32 +511,20 @@ sil::Image MandelBrot()
     {
         for (int y{0}; y < image.height(); y++)
         {
-
-            ///** r pour réel et i pour imaginaire **///
-
-            // Conversion des pixels en coordonnées complexes
-            //  c_r = partie réelle, c_i = partie imaginaire
-
-            float c_r = x / static_cast<float>(zoom) + x1;
-            float c_i = y / static_cast<float>(zoom) + y1;
-            // Initialisation de z partie réelle et partie imaginaire
-            float z_r = 0;
-            float z_i = 0;
+            std::complex<float> z{0., 0.};
             int i = 0;
+            float reel = intervalMin + (x / float(size - 1)) * (intervalMax - intervalMin);
+            float imaginaire = intervalMin + (y / float(size - 1)) * (intervalMax - intervalMin);
+            std::complex<float> c{reel, imaginaire};
 
-            // Toutes les formules ci-dessous, ont été trouvé sur internet (développement de la formule de base z = z^2 + c)
-            //  La formule de Mandelbrot : z = z^2 + c
-            while (z_r * z_r + z_i * z_i < 4 && i < iteration)
+            while (std::abs(z) < 2 && i < iteration)
             {
-                // stockage temporaire de la partie réelle
-                float tmp = z_r;
-                // partie réel et imaginaire
-                z_r = z_r * z_r - z_i * z_i + c_r; // zr^2 - zi^2 + cr
-                z_i = 2 * tmp * z_i + c_i;         // 2*zr*zi + ci
+                z = z * z + c;
                 i++;
+                image.pixel(x, y).r = static_cast<float>(i) / static_cast<float>(iteration);
+                image.pixel(x, y).g = static_cast<float>(i) / static_cast<float>(iteration);
+                image.pixel(x, y).b = static_cast<float>(i) / static_cast<float>(iteration);
             }
-
-            // Si le pixel reste dans le fractal de Mandelbrot, je le dessine en blanc
             if (i == iteration)
             {
                 image.pixel(x, y).r = 1.0;
@@ -550,11 +535,12 @@ sil::Image MandelBrot()
     }
     return image;
 }
+
 // Ces deux fonctions sont utilisé pour l'exercice du Oklab
 float sRGB_to_linear(float color)
 {
     if (color <= 0.04045f)
-        return color / 12.92f;
+        return color / 129.f;
     else
         return std::pow((color + 0.055f) / 1.055f, 2.4f);
 }
@@ -669,9 +655,9 @@ void TramageV2(sil::Image &image)
             float blue = image.pixel(x, y).b;
             float green = image.pixel(x, y).g;
             float luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-            
+
             float bayer_value = bayer_matrix_4x4[x % bayer_n][y % bayer_n];
-            float output_color = luminance + bayer_value; //ajuste la luminance
+            float output_color = luminance + bayer_value; // ajuste la luminance
 
             output_color = std::max(0.f, std::min(1.f, output_color));
             if (output_color < 0.5f)
@@ -684,6 +670,185 @@ void TramageV2(sil::Image &image)
             image.pixel(x, y).b = output_color;
         }
     }
+}
+
+void Normalisation(sil::Image &image)
+{
+    float minL = 1.;
+    float maxL = 0.;
+    for (int x{0}; x < image.width(); x++)
+    {
+        for (int y{0}; y < image.height(); y++)
+        {
+            float red = image.pixel(x, y).r;
+            float blue = image.pixel(x, y).b;
+            float green = image.pixel(x, y).g;
+            float luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+
+            if (minL > luminance)
+            {
+                minL = luminance;
+            }
+
+            if (maxL < luminance)
+            {
+                maxL = luminance;
+            }
+        }
+    }
+
+    for (int x2{0}; x2 < image.width(); x2++)
+    {
+        for (int y2{0}; y2 < image.height(); y2++)
+        {
+            float red = image.pixel(x2, y2).r;
+            float green = image.pixel(x2, y2).g;
+            float blue = image.pixel(x2, y2).b;
+            float luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+
+            // si on a la plus petite luminance, alors on a zero, et si on a la plus grand luminance, on a 1
+            float normalise = (luminance - minL) / (maxL - minL);
+
+            if (luminance > 0.f)
+            {
+                float k = normalise / luminance;
+                image.pixel(x2, y2).r *= k;
+                image.pixel(x2, y2).g *= k;
+                image.pixel(x2, y2).b *= k;
+            }
+            else
+            {
+                image.pixel(x2, y2).r = 0.f;
+                image.pixel(x2, y2).g = 0.f;
+                image.pixel(x2, y2).b = 0.f;
+            }
+        }
+    }
+}
+
+glm::vec2 rotated(glm::vec2 point, glm::vec2 center_of_rotation, float angle)
+{
+    return glm::vec2{glm::rotate(glm::mat3{1.f}, angle) * glm::vec3{point - center_of_rotation, 0.f}} + center_of_rotation;
+}
+
+void Vortex(sil::Image &image)
+{
+    float const pi = 3.141592653589793;
+    glm::vec2 center{image.width() / 2.f, image.height() / 2.f};
+    float max_distance = 20;
+    sil::Image original = image;
+
+    for (int x = 0; x < image.width(); x++)
+    {
+        for (int y = 0; y < image.height(); y++)
+        {
+            glm::vec2 current_pos{x, y};
+            float distance = glm::distance(current_pos, center);
+
+            float angle = (distance / max_distance) * pi / 2.f;
+
+            glm::vec2 source = rotated(current_pos, center, angle);
+
+            int src_x = int(source.x);
+            int src_y = int(source.y);
+
+            if (src_x >= 0 && src_x < image.width() && src_y >= 0 && src_y < image.height())
+            {
+                image.pixel(x, y) = original.pixel(src_x, src_y);
+            }
+        }
+    }
+}
+
+sil::Image Convolution(sil::Image &image, std::vector<std::vector<float>> kernel)
+{
+    sil::Image imageFinal = image;
+    int tailleNoyau = kernel.size();
+    int offset = tailleNoyau / 2;
+    for (int x = 0; x < image.width(); x++)
+    {
+        for (int y = 0; y < image.height(); y++)
+        {
+            float sum_r = 0.f;
+            float sum_g = 0.f;
+            float sum_b = 0.f;
+
+            for (int kx = 0; kx < tailleNoyau; kx++)
+            {
+                for (int ky = 0; ky < tailleNoyau; ky++)
+                {
+                    int nx = std::clamp(x + kx - offset, 0, image.width() - 1);
+                    int ny = std::clamp(y + ky - offset, 0, image.height() - 1);
+
+                    sum_r += image.pixel(nx, ny).r * kernel[kx][ky];
+                    sum_g += image.pixel(nx, ny).g * kernel[kx][ky];
+                    sum_b += image.pixel(nx, ny).b * kernel[kx][ky];
+                }
+            }
+
+            imageFinal.pixel(x, y).r = sum_r;
+            imageFinal.pixel(x, y).g = sum_g;
+            imageFinal.pixel(x, y).b = sum_b;
+        }
+    }
+
+    return imageFinal;
+}
+sil::Image FiltreSeparable(sil::Image &image, std::vector<std::vector<float>> kernel)
+{
+    int tailleNoyau = kernel.size();
+    int offset = tailleNoyau / 2;
+    std::vector<float> kernelX(tailleNoyau);
+    std::vector<float> kernelY(tailleNoyau);
+
+    for (int i = 0; i < tailleNoyau; ++i)
+    {
+        kernelX[i] = kernel[0][i];
+        kernelY[i] = kernel[i][0];
+    }
+    sil::Image imageTemp{image.width(), image.height()};
+    for (int y = 0; y < image.height(); y++)
+    {
+        for (int x = 0; x < image.width(); x++)
+        {
+            float sum_r = 0.f, sum_g = 0.f, sum_b = 0.f;
+
+            for (int kx = 0; kx < tailleNoyau; kx++)
+            {
+                int nx = std::clamp(x + kx - offset, 0, image.width() - 1);
+
+                sum_r += image.pixel(nx, y).r * kernelX[kx];
+                sum_g += image.pixel(nx, y).g * kernelX[kx];
+                sum_b += image.pixel(nx, y).b * kernelX[kx];
+            }
+
+            imageTemp.pixel(x, y).r = sum_r;
+            imageTemp.pixel(x, y).g = sum_g;
+            imageTemp.pixel(x, y).b = sum_b;
+        }
+    }
+    for (int y = 0; y < image.height(); y++)
+    {
+        for (int x = 0; x < image.width(); x++)
+        {
+            float sum_r = 0.f, sum_g = 0.f, sum_b = 0.f;
+
+            for (int ky = 0; ky < tailleNoyau; ky++)
+            {
+                int ny = std::clamp(y + ky - offset, 0, image.height() - 1);
+
+                sum_r += imageTemp.pixel(x, ny).r * kernelY[ky];
+                sum_g += imageTemp.pixel(x, ny).g * kernelY[ky];
+                sum_b += imageTemp.pixel(x, ny).b * kernelY[ky];
+            }
+
+            imageTemp.pixel(x, y).r = sum_r;
+            imageTemp.pixel(x, y).g = sum_g;
+            imageTemp.pixel(x, y).b = sum_b;
+        }
+    }
+
+    return imageTemp;
 }
 
 int main()
@@ -793,5 +958,49 @@ int main()
         sil::Image image{"images/photo_faible_contraste.jpg"};
         TramageV2(image);
         image.save("output/TramageV2.png");
+    }
+    {
+        sil::Image image{"images/photo_faible_contraste.jpg"};
+        Normalisation(image);
+        image.save("output/Normalisation.png");
+    }
+    {
+        sil::Image image{"images/logo.png"};
+        Vortex(image);
+        image.save("output/Vortex.png");
+    }
+    {
+        sil::Image image{"images/logo.png"};
+        std::vector<std::vector<float>> kernel = {{(1 / 9.f), (1. / 9.f), (1. / 9.f)},
+                                                  {(1. / 9.f), (1. / 9.f), (1. / 9.f)},
+                                                  {(1. / 9.f), (1. / 9.f), (1. / 9.f)}};
+        sil::Image imageFinal = Convolution(image, kernel);
+        imageFinal.save("output/Convolution.png");
+    }
+    {
+        sil::Image image{"images/logo.png"};
+        std::vector<std::vector<float>> kernel = {{-2, -1, 0}, {-1, 1, 1}, {0, 1, 2}};
+        sil::Image imageFinal = Convolution(image, kernel);
+        imageFinal.save("output/ConvolutionEmboss.png");
+    }
+    {
+        sil::Image image{"images/logo.png"};
+        std::vector<std::vector<float>> kernel = {{-1, -1, -1}, {-1, 8, -1}, {-1, -1, -1}};
+        sil::Image imageFinal = Convolution(image, kernel);
+        imageFinal.save("output/ConvolutionOutline.png");
+    }
+    {
+        sil::Image image{"images/logo.png"};
+        std::vector<std::vector<float>> kernel = {{0, -1, 0}, {-1, 5, -1}, {0, -1, 0}};
+        sil::Image imageFinal = Convolution(image, kernel);
+        imageFinal.save("output/ConvolutionSharpen.png");
+    }
+    {
+        sil::Image image{"images/logo.png"};
+        std::vector<std::vector<float>> kernel = {{(1 / 3.f), (1. / 3.f), (1. / 3.f)},
+                                                  {(1. / 3.f), 0, 0},
+                                                  {(1. / 3.f), 0, 0}};
+        sil::Image imageFinal = FiltreSeparable(image, kernel);
+        imageFinal.save("output/FiltreSeparable.png");
     }
 }
